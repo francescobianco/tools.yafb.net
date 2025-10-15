@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Note Board - Gobbo per Video</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            background: #f8f8f8;
+            color: #000000;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            height: 100vh;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 0;
+            padding: 0;
+        }
+
+        .cell {
+            padding: 30px;
+            background: #ffffff;
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+        }
+
+        .cell.editing {
+            overflow: hidden;
+        }
+
+        .cell.editing:focus-within {
+            overflow-y: auto;
+        }
+
+        .rendered-content {
+            line-height: 1.6;
+            font-size: 22px;
+            color: #000000;
+            cursor: text;
+            height: 100%;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow: hidden;
+        }
+
+        .rendered-content:empty:before {
+            content: attr(data-placeholder);
+            color: #999;
+            font-style: italic;
+        }
+
+        .rendered-content strong {
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .rendered-content em {
+            font-style: italic;
+            color: #000000;
+        }
+
+        .rendered-content h1,
+        .rendered-content h2,
+        .rendered-content h3 {
+            color: #000000;
+            margin: 12px 0 8px 0;
+            font-weight: bold;
+        }
+
+        .rendered-content h1 { font-size: 32px; }
+        .rendered-content h2 { font-size: 28px; }
+        .rendered-content h3 { font-size: 24px; }
+
+        .rendered-content code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 2px;
+            color: #000000;
+            font-family: 'Courier New', monospace;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            border: none;
+            color: #000000;
+            font-size: 20px;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .controls.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        button {
+            background: #ffffff;
+            color: #000000;
+            border: 2px solid #000000;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: normal;
+            font-family: 'Times New Roman', Times, serif;
+            transition: all 0.3s;
+            box-shadow: 2px 2px 0px #000000;
+        }
+
+        button:hover {
+            background: #f0f0f0;
+            transform: translate(1px, 1px);
+            box-shadow: 1px 1px 0px #000000;
+        }
+
+        button:active {
+            transform: translate(2px, 2px);
+            box-shadow: none;
+        }
+
+        .copy-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ffffff;
+            color: #000000;
+            border: 2px solid #000000;
+            padding: 12px 24px;
+            border-radius: 4px;
+            display: none;
+            z-index: 1001;
+            font-family: 'Times New Roman', Times, serif;
+            box-shadow: 3px 3px 0px #000000;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .copy-notification.show {
+            display: block;
+        }
+
+        /* Scrollbar styling */
+        .cell.editing:focus-within::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .cell.editing:focus-within::-webkit-scrollbar-track {
+            background: #f0f0f0;
+        }
+
+        .cell.editing:focus-within::-webkit-scrollbar-thumb {
+            background: #999;
+            border-radius: 0;
+        }
+
+        .cell.editing:focus-within::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+    </style>
+</head>
+<body>
+<div class="container" id="grid"></div>
+
+<div class="controls">
+    <button id="editBtn" onclick="toggleEditMode()">Modifica</button>
+    <button id="shareBtn" onclick="copyShareLink()">Condividi</button>
+</div>
+
+<div class="copy-notification" id="notification">
+    Link copiato negli appunti!
+</div>
+
+<script>
+    let isEditMode = false;
+    let cells = ['', '', '', '', '', ''];
+
+    // Funzione per parsare markdown semplice
+    function parseMarkdown(text) {
+        return text
+            .replace(/### (.*?)(\n|$)/g, '<h3>$1</h3>')
+            .replace(/## (.*?)(\n|$)/g, '<h2>$1</h2>')
+            .replace(/# (.*?)(\n|$)/g, '<h1>$1</h1>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/`(.*?)`/g, '<code>$1</code>');
+    }
+
+    // Carica dati dall'URL
+    function loadFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        const data = params.get('d');
+
+        if (data) {
+            try {
+                const decoded = decodeURIComponent(atob(data));
+                cells = JSON.parse(decoded);
+            } catch (e) {
+                console.error('Errore nel caricamento dei dati:', e);
+            }
+        }
+    }
+
+    // Salva dati nell'URL
+    function saveToURL() {
+        const data = JSON.stringify(cells);
+        const encoded = btoa(encodeURIComponent(data));
+        const url = new URL(window.location.href);
+        url.searchParams.set('d', encoded);
+        window.history.replaceState({}, '', url);
+    }
+
+    // Renderizza la griglia
+    function renderGrid() {
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+
+        // Controlla se almeno una cella ha contenuto
+        const hasContent = cells.some(cell => cell.trim() !== '');
+        const placeholderText = hasContent ? '' : 'Clicca per inserire le tue note...';
+
+        cells.forEach((content, index) => {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+
+            if (isEditMode) {
+                cell.classList.add('editing');
+                const textarea = document.createElement('textarea');
+                textarea.value = content;
+                textarea.addEventListener('input', (e) => {
+                    cells[index] = e.target.value;
+                    saveToURL();
+                });
+                cell.appendChild(textarea);
+            } else {
+                const renderedDiv = document.createElement('div');
+                renderedDiv.className = 'rendered-content';
+                renderedDiv.setAttribute('data-placeholder', placeholderText);
+                renderedDiv.innerHTML = parseMarkdown(content);
+
+                cell.appendChild(renderedDiv);
+
+                // Click sulla cella intera per entrare in modifica
+                cell.addEventListener('mousedown', (e) => {
+                    cell.dataset.mouseDownX = e.clientX;
+                    cell.dataset.mouseDownY = e.clientY;
+                });
+
+                cell.addEventListener('click', (e) => {
+                    // Controlla se c'è una selezione di testo
+                    const selection = window.getSelection();
+                    const hasSelection = selection && selection.toString().length > 0;
+
+                    // Controlla se il mouse si è mosso (drag per selezione)
+                    const mouseDownX = parseFloat(cell.dataset.mouseDownX || e.clientX);
+                    const mouseDownY = parseFloat(cell.dataset.mouseDownY || e.clientY);
+                    const mouseMoved = Math.abs(e.clientX - mouseDownX) > 5 || Math.abs(e.clientY - mouseDownY) > 5;
+
+                    // Entra in modifica solo se non c'è selezione e il mouse non si è mosso
+                    if (!isEditMode && !hasSelection && !mouseMoved) {
+                        isEditMode = true;
+                        updateButtons();
+                        renderGrid();
+                        // Focus sulla textarea della cella cliccata
+                        setTimeout(() => {
+                            const textareas = document.querySelectorAll('textarea');
+                            if (textareas[index]) {
+                                textareas[index].focus();
+                            }
+                        }, 50);
+                    }
+                });
+            }
+
+            grid.appendChild(cell);
+        });
+    }
+
+    // Toggle modalità modifica
+    function toggleEditMode() {
+        const controls = document.querySelector('.controls');
+
+        if (isEditMode) {
+            // Uscendo dalla modalità modifica, nascondi i bottoni
+            controls.classList.add('hidden');
+
+            // Dopo 1 secondo mostra i bottoni in modalità lettura
+            setTimeout(() => {
+                isEditMode = false;
+                updateButtons();
+                renderGrid();
+                controls.classList.remove('hidden');
+            }, 1000);
+        } else {
+            // Entrando in modalità modifica, cambio immediato
+            isEditMode = true;
+            updateButtons();
+            renderGrid();
+        }
+    }
+
+    // Aggiorna lo stato dei bottoni
+    function updateButtons() {
+        const editBtn = document.getElementById('editBtn');
+        const shareBtn = document.getElementById('shareBtn');
+
+        if (isEditMode) {
+            editBtn.textContent = 'OK!';
+            shareBtn.style.display = 'none';
+        } else {
+            editBtn.textContent = 'Modifica';
+            shareBtn.style.display = 'block';
+        }
+    }
+
+    // Copia link di condivisione
+    function copyShareLink() {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            const notification = document.getElementById('notification');
+            notification.classList.add('show');
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 2000);
+        });
+    }
+
+    // Inizializza
+    loadFromURL();
+    updateButtons();
+    renderGrid();
+</script>
+</body>
+</html>
