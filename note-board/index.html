@@ -320,11 +320,12 @@
 
             // Dopo 1 secondo mostra i bottoni in modalità lettura
             setTimeout(() => {
-                isEditMode = false;
                 updateButtons();
-                renderGrid();
                 controls.classList.remove('hidden');
             }, 1000);
+
+            isEditMode = false;
+            renderGrid();
         } else {
             // Entrando in modalità modifica, cambio immediato
             isEditMode = true;
