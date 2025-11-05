@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Compare - Confronto Immagini</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            background: #f8f8f8;
+            color: #000000;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #ffffff;
+            border-bottom: 2px solid #000000;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .topbar {
+            background: #ffffff;
+            border-bottom: 2px solid #000000;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px 20px;
+            z-index: 1000;
+        }
+
+        .topbar input[type="file"] {
+            flex: 1;
+            height: 36px;
+            background: #ffffff;
+            border: 2px solid #000000;
+            border-radius: 4px;
+            color: #000000;
+            padding: 0;
+            font-size: 14px;
+            cursor: pointer;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        .topbar input[type="file"]::file-selector-button {
+            background: #ffffff;
+            border: none;
+            border-right: 2px solid #000000;
+            color: #000000;
+            padding: 8px 12px;
+            margin: 4px 4px 4px 4px;
+            cursor: pointer;
+            font-size: 14px;
+            height: 28px;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        .topbar input[type="file"]::file-selector-button:hover {
+            background: #f0f0f0;
+        }
+
+        .topbar input[type="file"]:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #000000;
+        }
+
+        .topbar button {
+            height: 36px;
+            padding: 0 16px;
+            background: #ffffff;
+            border: 2px solid #000000;
+            border-radius: 4px;
+            color: #000000;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 2px 2px 0px #000000;
+            font-family: 'Times New Roman', Times, serif;
+            font-weight: normal;
+        }
+
+        .topbar button:hover {
+            background: #f0f0f0;
+            transform: translate(1px, 1px);
+            box-shadow: 1px 1px 0px #000000;
+        }
+
+        .topbar button:active {
+            transform: translate(2px, 2px);
+            box-shadow: none;
+        }
+
+        .topbar button:disabled {
+            background: #f0f0f0;
+            color: #999;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .container {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+        }
+
+        .split-view {
+            position: relative;
+            width: 100%;
+            min-height: 100%;
+        }
+
+        .panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            min-height: 100%;
+            background: #ffffff;
+        }
+
+        .panel-left {
+            clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%);
+        }
+
+        .panel-right {
+            clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
+        }
+
+        .panel img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+            font-size: 18px;
+            text-align: center;
+            padding: 40px;
+            font-style: italic;
+        }
+
+        .slider {
+            position: fixed;
+            top: 129px; /* Altezza header + topbar */
+            left: 50%;
+            width: 4px;
+            bottom: 0;
+            background: #000000;
+            cursor: ew-resize;
+            z-index: 100;
+            transform: translateX(-50%);
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            border: 2px solid #e0e0e0;
+            border-top: 2px solid #000000;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-btn {
+            height: 36px;
+            width: 36px;
+            padding: 0;
+            background: #ffffff;
+            border: 2px solid #000000;
+            border-radius: 4px;
+            color: #000000;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 2px 2px 0px #000000;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        .dropdown-btn:hover {
+            background: #f0f0f0;
+            transform: translate(1px, 1px);
+            box-shadow: 1px 1px 0px #000000;
+        }
+
+        .dropdown-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: none;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background: #ffffff;
+            border: 2px solid #000000;
+            border-radius: 4px;
+            min-width: 180px;
+            white-space: nowrap;
+            box-shadow: 4px 4px 0px #000000;
+            z-index: 1000;
+            margin-top: 4px;
+        }
+
+        .dropdown-content.show {
+            display: block;
+        }
+
+        .dropdown-content button {
+            display: block;
+            width: 100%;
+            padding: 10px 16px;
+            background: none;
+            border: none;
+            border-bottom: 1px solid #e0e0e0;
+            color: #000000;
+            text-align: left;
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 0;
+            box-shadow: none;
+            font-family: 'Times New Roman', Times, serif;
+            transition: background 0.2s;
+        }
+
+        .dropdown-content button:last-child {
+            border-bottom: none;
+        }
+
+        .dropdown-content button:hover:not(:disabled) {
+            background: #f0f0f0;
+            transform: none;
+        }
+
+        .dropdown-content button:active:not(:disabled) {
+            background: #e0e0e0;
+        }
+
+        .dropdown-content button:disabled {
+            color: #999;
+            cursor: not-allowed;
+            background: #f8f8f8;
+        }
+
+        .swap-btn {
+            width: 36px;
+            height: 36px;
+            background: #ffffff;
+            border: 2px solid #000000;
+            border-radius: 4px;
+            color: #000000;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 2px 2px 0px #000000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        .swap-btn:hover {
+            background: #f0f0f0;
+            transform: translate(1px, 1px);
+            box-shadow: 1px 1px 0px #000000;
+        }
+
+        .swap-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 Page Compare</h1>
+        <p>Confronta due immagini con slider interattivo</p>
+    </div>
+
+    <div class="topbar">
+        <input type="file" id="leftFile" accept="image/*" placeholder="Seleziona prima immagine">
+        <button class="swap-btn" onclick="swapFiles()">⇄</button>
+        <input type="file" id="rightFile" accept="image/*" placeholder="Seleziona seconda immagine">
+        <button id="compareBtn" onclick="compare()">Confronta</button>
+        <div class="dropdown">
+            <button class="dropdown-btn" onclick="toggleDropdown()">☰</button>
+            <div class="dropdown-content" id="dropdownContent">
+                <button id="saveBtn" onclick="saveComparison()" disabled>Salva Confronto</button>
+                <button id="loadBtn" onclick="showLoadMenu()">Carica Confronto</button>
+                <button id="removeBtn" onclick="showRemoveMenu()">Rimuovi Confronto</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="split-view" id="splitView">
+            <div class="panel panel-left" id="leftPanel">
+                <div class="placeholder">Seleziona due immagini e clicca Confronta</div>
+            </div>
+            <div class="panel panel-right" id="rightPanel">
+                <div class="placeholder">Seleziona due immagini e clicca Confronta</div>
+            </div>
+            <div class="slider" id="slider"></div>
+        </div>
+    </div>
+
+    <script>
+        let isDragging = false;
+        let currentPosition = 50;
+
+        const slider = document.getElementById('slider');
+        const leftPanel = document.getElementById('leftPanel');
+        const rightPanel = document.getElementById('rightPanel');
+        const splitView = document.getElementById('splitView');
+
+        // Slider functionality
+        slider.addEventListener('mousedown', startDrag);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', endDrag);
+
+        function startDrag(e) {
+            isDragging = true;
+            document.body.style.cursor = 'ew-resize';
+            e.preventDefault();
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+
+            const container = document.querySelector('.container');
+            const containerRect = container.getBoundingClientRect();
+            const x = e.clientX - containerRect.left;
+
+            const percentage = Math.max(10, Math.min(90, (x / container.clientWidth) * 100));
+
+            updateSlider(percentage);
+        }
+
+        function endDrag() {
+            isDragging = false;
+            document.body.style.cursor = '';
+        }
+
+        function updateSlider(percentage) {
+            currentPosition = percentage;
+            slider.style.left = percentage + '%';
+            leftPanel.style.clipPath = `polygon(0 0, ${percentage}% 0, ${percentage}% 100%, 0 100%)`;
+            rightPanel.style.clipPath = `polygon(${percentage}% 0, 100% 0, 100% 100%, ${percentage}% 100%)`;
+        }
+
+        // Global variables for current comparison
+        let currentComparison = null;
+
+        // URL Hash management
+        function updateURLHash(comparisonId = null) {
+            if (comparisonId) {
+                window.location.hash = `comparison=${comparisonId}`;
+            } else {
+                window.location.hash = '';
+            }
+        }
+
+        function loadFromURLHash() {
+            const hash = window.location.hash.substring(1);
+            if (!hash) return;
+
+            const params = new URLSearchParams(hash);
+            const comparisonId = params.get('comparison');
+
+            if (comparisonId) {
+                const savedComparisons = JSON.parse(localStorage.getItem('savedComparisons') || '[]');
+                const saved = savedComparisons.find(comp => comp.id === comparisonId);
+
+                if (saved && saved.leftData && saved.rightData) {
+                    loadSavedComparison(saved);
+                }
+            }
+        }
+
+        function loadSavedComparison(saved) {
+            try {
+                const leftBlob = base64ToBlob(saved.leftData);
+                const rightBlob = base64ToBlob(saved.rightData);
+
+                const leftUrl = URL.createObjectURL(leftBlob);
+                const rightUrl = URL.createObjectURL(rightBlob);
+
+                currentComparison = {
+                    leftPath: saved.leftPath,
+                    rightPath: saved.rightPath,
+                    leftUrl: leftUrl,
+                    rightUrl: rightUrl,
+                    savedId: saved.id
+                };
+
+                displayImages(leftUrl, rightUrl, saved.leftPath, saved.rightPath);
+                updateSplitViewHeight();
+                document.getElementById('saveBtn').disabled = false;
+            } catch (error) {
+                console.error('Error loading saved comparison:', error);
+                showError('Impossibile caricare il confronto salvato');
+            }
+        }
+
+        function base64ToBlob(base64Data) {
+            const byteCharacters = atob(base64Data.split(',')[1]);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], {type: 'image/png'});
+        }
+
+        function showFilesNeeded(title, leftPath, rightPath) {
+            leftPanel.innerHTML = `<div class="placeholder">${title}<br><br>In attesa di:<br>${leftPath}<br>+<br>${rightPath}</div>`;
+            rightPanel.innerHTML = `<div class="placeholder">${title}<br><br>In attesa di:<br>${leftPath}<br>+<br>${rightPath}</div>`;
+        }
+
+        // Compare functionality
+        function compare() {
+            const leftFile = document.getElementById('leftFile').files[0];
+            const rightFile = document.getElementById('rightFile').files[0];
+            const compareBtn = document.getElementById('compareBtn');
+            const saveBtn = document.getElementById('saveBtn');
+
+            if (!leftFile || !rightFile) {
+                alert('Seleziona entrambe le immagini');
+                return;
+            }
+
+            compareBtn.disabled = true;
+            compareBtn.textContent = 'Caricamento...';
+
+            showLoading();
+
+            try {
+                const leftUrl = URL.createObjectURL(leftFile);
+                const rightUrl = URL.createObjectURL(rightFile);
+
+                currentComparison = {
+                    leftPath: leftFile.name,
+                    rightPath: rightFile.name,
+                    leftUrl: leftUrl,
+                    rightUrl: rightUrl
+                };
+
+                displayImages(leftUrl, rightUrl, leftFile.name, rightFile.name);
+                updateSplitViewHeight();
+                saveBtn.disabled = false;
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Impossibile caricare le immagini');
+            } finally {
+                compareBtn.disabled = false;
+                compareBtn.textContent = 'Confronta';
+            }
+        }
+
+        function showLoading() {
+            leftPanel.innerHTML = '<div class="loading"></div>';
+            rightPanel.innerHTML = '<div class="loading"></div>';
+        }
+
+        function displayImages(leftSrc, rightSrc, leftName = '', rightName = '') {
+            leftPanel.innerHTML = `<img src="${leftSrc}" alt="${leftName || 'Immagine sinistra'}">`;
+            rightPanel.innerHTML = `<img src="${rightSrc}" alt="${rightName || 'Immagine destra'}">`;
+        }
+
+        function showError(message) {
+            leftPanel.innerHTML = `<div class="placeholder">${message}</div>`;
+            rightPanel.innerHTML = `<div class="placeholder">${message}</div>`;
+        }
+
+        // Save comparison functionality
+        async function saveComparison() {
+            if (!currentComparison) {
+                alert('Nessun confronto da salvare');
+                return;
+            }
+
+            const defaultName = `${currentComparison.leftPath} vs ${currentComparison.rightPath}`;
+            const name = prompt('Inserisci un nome per questo confronto:', defaultName);
+
+            if (name === null) return;
+
+            const finalName = name.trim() || defaultName;
+
+            try {
+                const leftData = await imageToBase64(currentComparison.leftUrl);
+                const rightData = await imageToBase64(currentComparison.rightUrl);
+
+                const savedComparisons = JSON.parse(localStorage.getItem('savedComparisons') || '[]');
+                const comparison = {
+                    id: Date.now().toString(),
+                    name: finalName,
+                    leftPath: currentComparison.leftPath,
+                    rightPath: currentComparison.rightPath,
+                    leftData: leftData,
+                    rightData: rightData,
+                    timestamp: new Date().toISOString()
+                };
+
+                savedComparisons.push(comparison);
+                localStorage.setItem('savedComparisons', JSON.stringify(savedComparisons));
+
+                updateURLHash(comparison.id);
+                currentComparison.savedId = comparison.id;
+
+                alert('Confronto salvato con successo!');
+                toggleDropdown();
+            } catch (error) {
+                console.error('Error saving comparison:', error);
+                alert('Impossibile salvare il confronto');
+                toggleDropdown();
+            }
+        }
+
+        function imageToBase64(imageUrl) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    resolve(canvas.toDataURL('image/png'));
+                };
+                img.onerror = reject;
+                img.src = imageUrl;
+            });
+        }
+
+        // Load menu functionality
+        function showLoadMenu() {
+            const savedComparisons = JSON.parse(localStorage.getItem('savedComparisons') || '[]');
+
+            if (savedComparisons.length === 0) {
+                alert('Nessun confronto salvato trovato');
+                return;
+            }
+
+            let menu = 'Confronti Salvati:\n\n';
+            savedComparisons.forEach((comp, index) => {
+                const date = new Date(comp.timestamp).toLocaleDateString();
+                menu += `${index + 1}. ${comp.name} (${date})\n`;
+            });
+            menu += '\nInserisci il numero da caricare (o 0 per annullare):';
+
+            const choice = prompt(menu);
+            const index = parseInt(choice) - 1;
+
+            if (choice === '0' || choice === null) return;
+
+            if (index >= 0 && index < savedComparisons.length) {
+                loadComparison(savedComparisons[index]);
+            } else {
+                alert('Selezione non valida');
+            }
+        }
+
+        function loadComparison(comparison) {
+            updateURLHash(comparison.id);
+            loadSavedComparison(comparison);
+            toggleDropdown();
+        }
+
+        // Swap files functionality
+        function swapFiles() {
+            const leftInput = document.getElementById('leftFile');
+            const rightInput = document.getElementById('rightFile');
+
+            const leftFiles = leftInput.files;
+            const rightFiles = rightInput.files;
+
+            if (leftFiles.length > 0 || rightFiles.length > 0) {
+                const leftTransfer = new DataTransfer();
+                const rightTransfer = new DataTransfer();
+
+                for (let file of rightFiles) {
+                    leftTransfer.items.add(file);
+                }
+
+                for (let file of leftFiles) {
+                    rightTransfer.items.add(file);
+                }
+
+                leftInput.files = leftTransfer.files;
+                rightInput.files = rightTransfer.files;
+
+                if (currentComparison) {
+                    compare();
+                }
+
+                checkAutoCompare();
+            }
+        }
+
+        // Remove comparison functionality
+        function showRemoveMenu() {
+            const savedComparisons = JSON.parse(localStorage.getItem('savedComparisons') || '[]');
+
+            if (savedComparisons.length === 0) {
+                alert('Nessun confronto salvato trovato');
+                toggleDropdown();
+                return;
+            }
+
+            let menu = 'Rimuovi Confronto:\n\n';
+            savedComparisons.forEach((comp, index) => {
+                const date = new Date(comp.timestamp).toLocaleDateString();
+                menu += `${index + 1}. ${comp.name} (${date})\n`;
+            });
+            menu += '\nInserisci il numero da rimuovere (o 0 per annullare):';
+
+            const choice = prompt(menu);
+            const index = parseInt(choice) - 1;
+
+            if (choice === '0' || choice === null) {
+                toggleDropdown();
+                return;
+            }
+
+            if (index >= 0 && index < savedComparisons.length) {
+                const compToRemove = savedComparisons[index];
+                const confirm = window.confirm(`Sei sicuro di voler rimuovere "${compToRemove.name}"?`);
+
+                if (confirm) {
+                    savedComparisons.splice(index, 1);
+                    localStorage.setItem('savedComparisons', JSON.stringify(savedComparisons));
+                    alert('Confronto rimosso con successo!');
+                }
+            } else {
+                alert('Selezione non valida');
+            }
+
+            toggleDropdown();
+        }
+
+        function toggleDropdown() {
+            document.getElementById('dropdownContent').classList.toggle('show');
+        }
+
+        function updateSplitViewHeight() {
+            setTimeout(() => {
+                const leftImg = leftPanel.querySelector('img');
+                const rightImg = rightPanel.querySelector('img');
+
+                if (leftImg && rightImg) {
+                    const maxHeight = Math.max(
+                        leftImg.naturalHeight * (window.innerWidth / leftImg.naturalWidth),
+                        rightImg.naturalHeight * (window.innerWidth / rightImg.naturalWidth)
+                    );
+
+                    splitView.style.height = maxHeight + 'px';
+                }
+            }, 100);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            updateSlider(currentPosition);
+            updateSplitViewHeight();
+        });
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFromURLHash();
+        });
+
+        // Handle hash changes
+        window.addEventListener('hashchange', () => {
+            loadFromURLHash();
+        });
+
+        // Handle file input changes
+        document.getElementById('leftFile').addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                checkAutoCompare();
+            }
+        });
+
+        document.getElementById('rightFile').addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                checkAutoCompare();
+            }
+        });
+
+        function checkAutoCompare() {
+            if (currentComparison && currentComparison.savedId) return;
+
+            const leftFileInput = document.getElementById('leftFile');
+            const rightFileInput = document.getElementById('rightFile');
+
+            const leftFile = leftFileInput.files[0];
+            const rightFile = rightFileInput.files[0];
+
+            if (leftFile && rightFile) {
+                setTimeout(() => {
+                    compare();
+                }, 100);
+            }
+        }
+
+        // Close dropdown when clicking outside
+        window.addEventListener('click', function(event) {
+            if (!event.target.matches('.dropdown-btn') && !event.target.closest('.dropdown')) {
+                const dropdowns = document.getElementsByClassName('dropdown-content');
+                for (let i = 0; i < dropdowns.length; i++) {
+                    dropdowns[i].classList.remove('show');
+                }
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                compare();
+            }
+            if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                saveComparison();
+            }
+        });
+    </script>
+</body>
+</html>
