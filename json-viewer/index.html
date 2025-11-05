@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Viewer - Tree Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            background: #f8f8f8;
+            color: #000000;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #ffffff;
+            border-bottom: 2px solid #000000;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            overflow: hidden;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            border-right: 1px solid #e0e0e0;
+        }
+
+        .panel:last-child {
+            border-right: none;
+        }
+
+        .panel-header {
+            padding: 15px 20px;
+            background: #f8f8f8;
+            border-bottom: 2px solid #000000;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            border: none;
+            color: #000000;
+            font-size: 16px;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+            font-family: 'Courier New', monospace;
+            padding: 0;
+        }
+
+        .tree-view {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .tree-node {
+            margin-left: 0;
+        }
+
+        .tree-item {
+            display: flex;
+            align-items: flex-start;
+            margin: 2px 0;
+        }
+
+        .tree-toggle {
+            cursor: pointer;
+            user-select: none;
+            min-width: 20px;
+            display: inline-block;
+            font-weight: bold;
+            color: #000000;
+            background: none;
+            border: none;
+            padding: 0;
+            margin-right: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .tree-toggle:hover {
+            color: #666;
+        }
+
+        .tree-toggle.collapsed::before {
+            content: '▶';
+        }
+
+        .tree-toggle.expanded::before {
+            content: '▼';
+        }
+
+        .tree-toggle.leaf {
+            visibility: hidden;
+        }
+
+        .tree-key {
+            color: #0066cc;
+            font-weight: bold;
+        }
+
+        .tree-value {
+            color: #000000;
+        }
+
+        .tree-value.string {
+            color: #009900;
+        }
+
+        .tree-value.number {
+            color: #cc6600;
+        }
+
+        .tree-value.boolean {
+            color: #990099;
+        }
+
+        .tree-value.null {
+            color: #999999;
+            font-style: italic;
+        }
+
+        .tree-bracket {
+            color: #000000;
+            font-weight: bold;
+        }
+
+        .tree-children {
+            margin-left: 20px;
+        }
+
+        .tree-children.collapsed {
+            display: none;
+        }
+
+        .error-message {
+            color: #cc0000;
+            background: #ffe6e6;
+            border: 2px solid #cc0000;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            color: #999;
+            font-style: italic;
+            text-align: center;
+            padding: 40px 20px;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        button.control-btn {
+            background: #ffffff;
+            color: #000000;
+            border: 2px solid #000000;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: normal;
+            font-family: 'Times New Roman', Times, serif;
+            transition: all 0.2s;
+            box-shadow: 2px 2px 0px #000000;
+        }
+
+        button.control-btn:hover {
+            background: #f0f0f0;
+            transform: translate(1px, 1px);
+            box-shadow: 1px 1px 0px #000000;
+        }
+
+        button.control-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: none;
+        }
+
+        /* Scrollbar styling */
+        .panel-content::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        .panel-content::-webkit-scrollbar-track {
+            background: #f0f0f0;
+        }
+
+        .panel-content::-webkit-scrollbar-thumb {
+            background: #999;
+            border-radius: 0;
+        }
+
+        .panel-content::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 JSON Viewer</h1>
+        <p>Visualizza JSON come albero interattivo</p>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <div class="panel-header">📝 Input JSON</div>
+            <div class="panel-content">
+                <textarea id="jsonInput" placeholder="Inserisci qui il tuo JSON..."></textarea>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">🌳 Visualizzazione Albero</div>
+            <div class="panel-content" id="treeView">
+                <div class="empty-state">Inserisci un JSON valido per visualizzare l'albero</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="control-btn" onclick="expandAll()">Espandi Tutto</button>
+        <button class="control-btn" onclick="collapseAll()">Comprimi Tutto</button>
+        <button class="control-btn" onclick="formatJSON()">Formatta</button>
+        <button class="control-btn" onclick="clearJSON()">Pulisci</button>
+    </div>
+
+    <script>
+        const jsonInput = document.getElementById('jsonInput');
+        const treeView = document.getElementById('treeView');
+        let jsonData = null;
+        let nodeStates = new Map(); // Memorizza lo stato di ogni nodo (espanso/collassato)
+
+        // Carica JSON dall'URL
+        function loadFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            const data = params.get('d');
+
+            if (data) {
+                try {
+                    const decoded = decodeURIComponent(atob(data));
+                    jsonInput.value = decoded;
+                    parseAndRenderJSON();
+                } catch (e) {
+                    console.error('Errore nel caricamento dei dati:', e);
+                }
+            }
+        }
+
+        // Salva JSON nell'URL
+        function saveToURL() {
+            const value = jsonInput.value.trim();
+            if (value) {
+                const encoded = btoa(encodeURIComponent(value));
+                const url = new URL(window.location.href);
+                url.searchParams.set('d', encoded);
+                window.history.replaceState({}, '', url);
+            }
+        }
+
+        // Parsing e rendering del JSON
+        function parseAndRenderJSON() {
+            const value = jsonInput.value.trim();
+
+            if (!value) {
+                treeView.innerHTML = '<div class="empty-state">Inserisci un JSON valido per visualizzare l\'albero</div>';
+                jsonData = null;
+                return;
+            }
+
+            try {
+                jsonData = JSON.parse(value);
+                renderTree();
+                saveToURL();
+            } catch (e) {
+                treeView.innerHTML = `<div class="error-message"><strong>Errore di parsing:</strong><br>${e.message}</div>`;
+                jsonData = null;
+            }
+        }
+
+        // Genera un ID unico per ogni nodo basato sul suo path
+        function generateNodeId(path) {
+            return path.join('.');
+        }
+
+        // Renderizza l'albero JSON
+        function renderTree() {
+            if (!jsonData) return;
+
+            treeView.innerHTML = '';
+            const rootNode = createTreeNode(jsonData, [], 'root');
+            treeView.appendChild(rootNode);
+        }
+
+        // Crea un nodo dell'albero
+        function createTreeNode(data, path, key) {
+            const nodeId = generateNodeId(path);
+            const isExpanded = nodeStates.get(nodeId) !== false; // Default: espanso
+
+            const node = document.createElement('div');
+            node.className = 'tree-node';
+
+            if (typeof data === 'object' && data !== null) {
+                const isArray = Array.isArray(data);
+                const entries = isArray ? data.entries() : Object.entries(data);
+                const entriesArray = Array.from(entries);
+                const isEmpty = entriesArray.length === 0;
+
+                const item = document.createElement('div');
+                item.className = 'tree-item';
+
+                // Toggle button
+                if (!isEmpty) {
+                    const toggle = document.createElement('button');
+                    toggle.className = `tree-toggle ${isExpanded ? 'expanded' : 'collapsed'}`;
+                    toggle.onclick = () => toggleNode(nodeId);
+                    item.appendChild(toggle);
+                } else {
+                    const toggle = document.createElement('button');
+                    toggle.className = 'tree-toggle leaf';
+                    item.appendChild(toggle);
+                }
+
+                // Key e apertura bracket
+                const label = document.createElement('span');
+                if (key !== 'root') {
+                    label.innerHTML = `<span class="tree-key">${escapeHtml(key)}</span>: `;
+                }
+                label.innerHTML += `<span class="tree-bracket">${isArray ? '[' : '{'}</span>`;
+
+                if (isEmpty) {
+                    label.innerHTML += `<span class="tree-bracket">${isArray ? ']' : '}'}</span>`;
+                } else {
+                    label.innerHTML += ` <span style="color: #999;">${isArray ? entriesArray.length + ' items' : entriesArray.length + ' properties'}</span>`;
+                }
+
+                item.appendChild(label);
+                node.appendChild(item);
+
+                // Children
+                if (!isEmpty) {
+                    const children = document.createElement('div');
+                    children.className = `tree-children ${isExpanded ? '' : 'collapsed'}`;
+                    children.id = `node-${nodeId}`;
+
+                    entriesArray.forEach(([k, v]) => {
+                        const childPath = [...path, k];
+                        const childNode = createTreeNode(v, childPath, k);
+                        children.appendChild(childNode);
+                    });
+
+                    // Closing bracket
+                    const closingItem = document.createElement('div');
+                    closingItem.className = 'tree-item';
+                    closingItem.innerHTML = `<span class="tree-toggle leaf"></span><span class="tree-bracket">${isArray ? ']' : '}'}</span>`;
+                    children.appendChild(closingItem);
+
+                    node.appendChild(children);
+                }
+            } else {
+                // Leaf node (valore primitivo)
+                const item = document.createElement('div');
+                item.className = 'tree-item';
+
+                const toggle = document.createElement('button');
+                toggle.className = 'tree-toggle leaf';
+                item.appendChild(toggle);
+
+                const label = document.createElement('span');
+                if (key !== 'root') {
+                    label.innerHTML = `<span class="tree-key">${escapeHtml(key)}</span>: `;
+                }
+                label.innerHTML += formatValue(data);
+                item.appendChild(label);
+
+                node.appendChild(item);
+            }
+
+            return node;
+        }
+
+        // Formatta un valore primitivo
+        function formatValue(value) {
+            if (value === null) {
+                return '<span class="tree-value null">null</span>';
+            }
+
+            const type = typeof value;
+
+            if (type === 'string') {
+                return `<span class="tree-value string">"${escapeHtml(value)}"</span>`;
+            } else if (type === 'number') {
+                return `<span class="tree-value number">${value}</span>`;
+            } else if (type === 'boolean') {
+                return `<span class="tree-value boolean">${value}</span>`;
+            }
+
+            return `<span class="tree-value">${escapeHtml(String(value))}</span>`;
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Toggle nodo
+        function toggleNode(nodeId) {
+            const childrenElement = document.getElementById(`node-${nodeId}`);
+            const toggleButton = childrenElement.previousElementSibling.querySelector('.tree-toggle');
+
+            if (childrenElement.classList.contains('collapsed')) {
+                childrenElement.classList.remove('collapsed');
+                toggleButton.classList.remove('collapsed');
+                toggleButton.classList.add('expanded');
+                nodeStates.set(nodeId, true);
+            } else {
+                childrenElement.classList.add('collapsed');
+                toggleButton.classList.remove('expanded');
+                toggleButton.classList.add('collapsed');
+                nodeStates.set(nodeId, false);
+            }
+        }
+
+        // Espandi tutti i nodi
+        function expandAll() {
+            nodeStates.clear();
+            renderTree();
+        }
+
+        // Comprimi tutti i nodi
+        function collapseAll() {
+            if (!jsonData) return;
+
+            // Imposta tutti i nodi come collassati
+            const setAllCollapsed = (data, path) => {
+                if (typeof data === 'object' && data !== null) {
+                    const nodeId = generateNodeId(path);
+                    nodeStates.set(nodeId, false);
+
+                    const entries = Array.isArray(data) ? data.entries() : Object.entries(data);
+                    Array.from(entries).forEach(([k, v]) => {
+                        setAllCollapsed(v, [...path, k]);
+                    });
+                }
+            };
+
+            setAllCollapsed(jsonData, []);
+            renderTree();
+        }
+
+        // Formatta il JSON nell'input
+        function formatJSON() {
+            if (jsonData) {
+                jsonInput.value = JSON.stringify(jsonData, null, 2);
+                saveToURL();
+            }
+        }
+
+        // Pulisci tutto
+        function clearJSON() {
+            jsonInput.value = '';
+            jsonData = null;
+            nodeStates.clear();
+            treeView.innerHTML = '<div class="empty-state">Inserisci un JSON valido per visualizzare l\'albero</div>';
+
+            const url = new URL(window.location.href);
+            url.searchParams.delete('d');
+            window.history.replaceState({}, '', url);
+        }
+
+        // Event listener per l'input
+        let inputTimeout;
+        jsonInput.addEventListener('input', () => {
+            clearTimeout(inputTimeout);
+            inputTimeout = setTimeout(() => {
+                parseAndRenderJSON();
+            }, 500);
+        });
+
+        // Inizializza
+        loadFromURL();
+
+        // Se non c'è nulla nell'URL, mostra un esempio
+        if (!jsonInput.value) {
+            const example = {
+                "name": "Mario Rossi",
+                "age": 30,
+                "active": true,
+                "address": {
+                    "street": "Via Roma 123",
+                    "city": "Milano",
+                    "zipCode": "20100"
+                },
+                "hobbies": ["lettura", "sport", "viaggi"],
+                "projects": [
+                    {
+                        "title": "Progetto A",
+                        "status": "completed"
+                    },
+                    {
+                        "title": "Progetto B",
+                        "status": "in-progress"
+                    }
+                ],
+                "metadata": null
+            };
+
+            jsonInput.value = JSON.stringify(example, null, 2);
+            parseAndRenderJSON();
+        }
+    </script>
+</body>
+</html>
